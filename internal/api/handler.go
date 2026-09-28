@@ -34,6 +34,9 @@ type Handler struct {
 	maxProductResults int64
 }
 
+// Hardcoding scopes like this is kinda bad...
+const ordersReadScope = "orders:read"
+
 func NewHandler(accountStore *accounts.Store, orderStore *orders.Store, productStore *storefront.Store, apiStore *Store, logger *logging.Logger, maxProductResults int) *Handler {
 	return &Handler{
 		accountStore: accountStore, orderStore: orderStore, productStore: productStore, apiStore: apiStore,
@@ -95,6 +98,10 @@ func (handler *Handler) Products(responseWriter http.ResponseWriter, request *ht
 }
 
 func (handler *Handler) WarehouseOrders(responseWriter http.ResponseWriter, request *http.Request) {
+	ok := handler.requireAPIKey(responseWriter, request)
+	if !ok {
+		return
+	}
 	orders, err := handler.orderStore.ListAll(request.Context())
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
@@ -123,6 +130,24 @@ func (handler *Handler) requireAuthentication(responseWriter http.ResponseWriter
 		return accounts.CurrentSession{}, false
 	}
 	return current, true
+}
+
+func (handler *Handler) requireAPIKey(responseWriter http.ResponseWriter, request *http.Request) bool {
+	apiKey := request.Header.Get("X-API-Key")
+	key, valid, err := handler.apiStore.FindKey(request.Context(), apiKey)
+	if err != nil {
+		handler.internalError(responseWriter, request, err)
+		return false
+	}
+	if !valid {
+		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "Invalid API key"})
+		return false
+	}
+	if key.Scope != ordersReadScope {
+		httpx.RespondWithJSON(responseWriter, http.StatusForbidden, map[string]string{"error": "Insufficient API key scope"})
+		return false
+	}
+	return true
 }
 
 func (handler *Handler) internalError(responseWriter http.ResponseWriter, request *http.Request, err error) {
