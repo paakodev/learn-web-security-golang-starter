@@ -147,10 +147,7 @@ func (store *Store) VerifyAndConsume(ctx context.Context, userID int64, code, se
 	if err != nil {
 		return false, fmt.Errorf("get rows affected: %w", err)
 	}
-	if changes == 1 {
-		return false, nil
-	}
-	return true, nil
+	return changes == 0, nil
 }
 
 func (store *Store) ConfirmEnrollment(ctx context.Context, userID int64) ([]string, error) {
