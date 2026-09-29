@@ -9,3 +9,4 @@ data/bulk-tax-documents/
 .env.local
 .env.*.local
 .air.*
+tmp/*
