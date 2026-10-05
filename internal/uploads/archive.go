@@ -68,6 +68,9 @@ func ExtractTaxDocumentArchive(encryptionKeyring Keyring, contents []byte, extra
 	plannedEntries := make([]plannedArchiveEntry, 0, len(archiveReader.File))
 	for _, entry := range archiveReader.File {
 		entryDestination := filepath.Join(importDirectory, entry.Name)
+		if !isInsideDirectory(importDirectory, entry) {
+			return ExtractedTaxDocumentArchive{}, &ArchiveImportError{Message: "Archive contains invalid entry.", StatusCode: 400}
+		}
 		if isIgnoredArchiveEntry(entry.Name) {
 			continue
 		}
@@ -155,6 +158,36 @@ func isIgnoredArchiveEntry(entryName string) bool {
 		strings.HasPrefix(baseName, "._") ||
 		baseName == "thumbs.db" ||
 		baseName == "desktop.ini"
+}
+
+func isInsideDirectory(directory string, file *zip.File) bool {
+	if file.Name == "" {
+		return false
+	}
+
+	if file.Mode()&os.ModeSymlink != 0 {
+		return false
+	}
+
+	if strings.Contains(file.Name, `\`) {
+		return false
+	}
+
+	if filepath.IsAbs(file.Name) {
+		return false
+	}
+
+	filePath := filepath.Join(directory, file.Name)
+	relativePath, err := filepath.Rel(directory, filePath)
+
+	if err != nil ||
+		relativePath == ".." ||
+		strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(relativePath) {
+		return false
+	}
+
+	return true
 }
 
 func DiscardExtractedTaxDocumentArchive(archive ExtractedTaxDocumentArchive) error {
