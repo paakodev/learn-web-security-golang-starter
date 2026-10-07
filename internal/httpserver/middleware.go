@@ -290,11 +290,12 @@ func blockNonTrustedOrigin(trustedOrigin string, templateRenderer *templates.Ren
 	}
 }
 
-func setCSPHeader(next http.Handler) http.Handler {
+func setCSPHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		nonce := httpx.CSPNonce(request.Context())
 		responseWriter.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'nonce-"+nonce+"'; style-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'")
 		responseWriter.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		responseWriter.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		next.ServeHTTP(responseWriter, request)
 	})
 }
