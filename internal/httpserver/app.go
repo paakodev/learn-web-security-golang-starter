@@ -237,6 +237,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		mainMux,
 		cspNonce,
 		setNoSniffHeader,
+		blockNonTrustedOrigin("http://localhost:3030", renderer), // Domain/site should be set somewhere sensible
 		recoverPanics(logger, renderer),
 	)
 	return &Application{Handler: handler, publicRoot: publicRoot}, nil

@@ -248,3 +248,44 @@ func setNoSniffHeader(next http.Handler) http.Handler {
 		next.ServeHTTP(responseWriter, request)
 	})
 }
+
+func blockNonTrustedOrigin(trustedOrigin string, templateRenderer *templates.Renderer) middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+			if request.Method != http.MethodPost {
+				next.ServeHTTP(responseWriter, request)
+				return
+			}
+			origin := request.Header.Get("Origin")
+			if origin != "" && origin != trustedOrigin {
+				if err := templateRenderer.Render(responseWriter, http.StatusForbidden, "error", map[string]string{
+					"Title":   "Forbidden",
+					"Message": "Access from this origin is not allowed.",
+				}); err != nil {
+					http.Error(responseWriter, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				}
+				return
+			}
+			referer := request.Header.Get("Referer")
+			if referer != "" && !strings.HasPrefix(referer, trustedOrigin) {
+				if err := templateRenderer.Render(responseWriter, http.StatusForbidden, "error", map[string]string{
+					"Title":   "Forbidden",
+					"Message": "Access from this referer is not allowed.",
+				}); err != nil {
+					http.Error(responseWriter, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				}
+				return
+			}
+			if origin == "" && referer == "" {
+				if err := templateRenderer.Render(responseWriter, http.StatusForbidden, "error", map[string]string{
+					"Title":   "Forbidden",
+					"Message": "Access from this request is not allowed.",
+				}); err != nil {
+					http.Error(responseWriter, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				}
+				return
+			}
+			next.ServeHTTP(responseWriter, request)
+		})
+	}
+}
