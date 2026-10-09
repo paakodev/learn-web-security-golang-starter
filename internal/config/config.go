@@ -78,8 +78,15 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		databasePath = filepath.Join(workingDirectory, "data", defaultDatabaseFilename)
 	}
 
+	var pawPalAPIKey string
+	if environment["PAWPAL_API_KEY"] == "" {
+		return Config{}, errors.New("PAWPAL_API_KEY must be set")
+	} else {
+		pawPalAPIKey = environment["PAWPAL_API_KEY"]
+	}
+
 	return Config{
-		PawPalAPIKey:               "bs_test_pawpal_starter_key",
+		PawPalAPIKey:               pawPalAPIKey,
 		AppOrigin:                  appOrigin,
 		Port:                       port,
 		DatabasePath:               databasePath,
