@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -36,6 +38,7 @@ type Config struct {
 	MaxPublicProductResults    int
 	ActiveEncryptionKeyVersion string
 	EncryptionKeys             map[string][32]byte
+	DownloadSigningKey         [32]byte
 }
 
 type AttackerLabConfig struct {
@@ -43,11 +46,11 @@ type AttackerLabConfig struct {
 }
 
 func Load(workingDirectory string) (Config, error) {
-	return Parse(processEnvironment(), workingDirectory)
+	return Parse(processEnvironment(workingDirectory), workingDirectory)
 }
 
 func LoadAttackerLab(workingDirectory string) (AttackerLabConfig, error) {
-	return ParseAttackerLab(processEnvironment())
+	return ParseAttackerLab(processEnvironment(workingDirectory))
 }
 
 func Parse(environment map[string]string, workingDirectory string) (Config, error) {
@@ -85,6 +88,11 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		pawPalAPIKey = environment["PAWPAL_API_KEY"]
 	}
 
+	downLoadSigningKey, err := parseDownloadSigningKey(valueOrDefault(environment, "DOWNLOAD_SIGNING_KEY", ""))
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		PawPalAPIKey:               pawPalAPIKey,
 		AppOrigin:                  appOrigin,
@@ -96,6 +104,7 @@ func Parse(environment map[string]string, workingDirectory string) (Config, erro
 		MaxPublicProductResults:    MaxPublicProductResults,
 		ActiveEncryptionKeyVersion: activeEncryptionKeyVersion,
 		EncryptionKeys:             encryptionKeys,
+		DownloadSigningKey:         downLoadSigningKey,
 	}, nil
 }
 
@@ -110,8 +119,16 @@ func ParseAttackerLab(environment map[string]string) (AttackerLabConfig, error) 
 	return AttackerLabConfig{Port: port}, nil
 }
 
-func processEnvironment() map[string]string {
+func processEnvironment(workingDirectory string) map[string]string {
 	environment := make(map[string]string)
+	// Load environment variables from .env file if it exists
+	dotEnv, err := godotenv.Read(filepath.Join(workingDirectory, ".env"))
+	if err == nil {
+		for name, value := range dotEnv {
+			environment[name] = value
+		}
+	}
+	// Override with environment variables from the OS
 	for _, entry := range os.Environ() {
 		name, value, found := strings.Cut(entry, "=")
 		if found {
@@ -226,4 +243,15 @@ func normalizeEncryptionVersion(version string) (string, error) {
 		}
 	}
 	return normalized, nil
+}
+
+func parseDownloadSigningKey(value string) ([32]byte, error) {
+	if value == "" {
+		return [32]byte{}, fmt.Errorf("missing required environment variable: DOWNLOAD_SIGNING_KEY")
+	}
+	decoded, err := hex.DecodeString(value)
+	if err != nil || len(decoded) != 32 {
+		return [32]byte{}, fmt.Errorf("DOWNLOAD_SIGNING_KEY must be exactly 64 hexadecimal characters")
+	}
+	return [32]byte(decoded), nil
 }

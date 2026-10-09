@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -50,6 +49,7 @@ type Options struct {
 	FixtureDirectory        string
 	TemplateDirectory       string
 	PublicDirectory         string
+	DownloadSigningKey      [32]byte
 }
 
 type Application struct {
@@ -79,6 +79,9 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	if err != nil {
 		return nil, fmt.Errorf("open public directory: %w", err)
 	}
+	if options.DownloadSigningKey == [32]byte{} {
+		return nil, fmt.Errorf("download signing key is required")
+	}
 
 	accountStore := accounts.NewStore(database)
 	mfaStore := mfa.NewStore(database, options.EncryptionKeyring)
@@ -100,10 +103,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		logger,
 		unboundedPublicProductResults,
 	)
-	var downloadSigningKey [32]byte
-	if _, err := rand.Read(downloadSigningKey[:]); err != nil {
-		return nil, fmt.Errorf("generate download signing key: %w", err)
-	}
+
 	uploadHandler := uploads.NewHandler(
 		accountStore,
 		uploadStore,
@@ -112,7 +112,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		options.EncryptionKeyring,
 		uploadDirectory,
 		defaultUploadBytes,
-		downloadSigningKey,
+		options.DownloadSigningKey,
 	)
 	adminHandler := admin.NewHandler(admin.NewStore(database), accountStore, renderer, logger, imagepreview.NewService(), options.MaxUploadBytes)
 	apiHandler := api.NewHandler(accountStore, orderStore, productStore, api.NewStore(database), logger, unboundedPublicProductResults)
