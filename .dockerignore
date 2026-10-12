@@ -2,6 +2,7 @@ data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
 data/*.log
+bearly-secure.log
 data/uploads/*
 !data/uploads/mystery-shack-tax-exemption.pdf
 data/bulk-tax-documents/
@@ -10,5 +11,5 @@ data/bulk-tax-documents/
 .env.*.local
 .air.*
 tmp/*
-.git/config
+.git/*
 !.env.example
