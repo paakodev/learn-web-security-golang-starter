@@ -128,6 +128,18 @@ func (handler *authHandler) Login(responseWriter http.ResponseWriter, request *h
 	if challengeToken != "" {
 		clearTOTPLoginChallengeCookie(responseWriter)
 	}
+
+	if passwords.NeedsRehash(user.PasswordHash) {
+		newHash, err := passwords.Hash(password)
+		if err == nil {
+			err = handler.accounts.UpdatePasswordHash(request.Context(), user.ID, newHash)
+			if err != nil {
+				handler.internalError(responseWriter, request, err)
+				return
+			}
+		}
+	}
+
 	http.Redirect(responseWriter, request, returnTo, http.StatusFound)
 }
 
