@@ -218,7 +218,8 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		}
 	})
 
-	// dynamicHandler := permissiveCORS(dynamicMux)
+	// Domain/site should be set somewhere sensible
+	dynamicHandler := blockNonTrustedOrigin("http://localhost:3030", renderer)(dynamicMux)
 
 	mainMux := http.NewServeMux()
 	mainMux.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, _ *http.Request) {
@@ -234,13 +235,12 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	mainMux.Handle("GET /shipping-widget.js", staticHandler)
 	mainMux.Handle("GET /product-photos/{filename}", staticHandler)
 	mainMux.HandleFunc("POST /integrations/pawpal/webhook", pawPalHandler.Webhook)
-	mainMux.Handle("/", dynamicMux)
+	mainMux.Handle("/", dynamicHandler)
 
 	handler := applyMiddleware(
 		mainMux,
 		cspNonce,
 		securityHeaders,
-		blockNonTrustedOrigin("http://localhost:3030", renderer), // Domain/site should be set somewhere sensible
 		recoverPanics(logger, renderer),
 	)
 	return &Application{Handler: handler, publicRoot: publicRoot}, nil
