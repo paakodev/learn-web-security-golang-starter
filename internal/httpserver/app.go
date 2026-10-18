@@ -225,10 +225,9 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		}
 	})
 
-	// Domain/site should be set somewhere sensible
 	dynamicHandler := applyMiddleware(
 		dynamicMux,
-		blockNonTrustedOrigin("http://localhost:3030", renderer),
+		blockNonTrustedOrigin(options.AppOrigin, renderer),
 		fixedWindowRateLimiter(rateLimitOptions{
 			window:  time.Minute,
 			maximum: 100,
