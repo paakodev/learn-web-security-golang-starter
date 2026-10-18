@@ -131,7 +131,7 @@ func (handler *Handler) Order(responseWriter http.ResponseWriter, request *http.
 }
 
 func (handler *Handler) Products(responseWriter http.ResponseWriter, request *http.Request) {
-	products, err := handler.productStore.ListAllProducts(request.Context())
+	products, err := handler.productStore.ListProducts(request.Context(), handler.maxProductResults)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
 		return

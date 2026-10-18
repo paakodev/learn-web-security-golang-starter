@@ -173,6 +173,9 @@ func (handler *Handler) readUpload(responseWriter http.ResponseWriter, request *
 	if len(files) == 0 {
 		return nil, "", errors.New("missing document upload")
 	}
+	if len(files) > 1 {
+		return nil, "", errors.New("multiple document uploads are not allowed")
+	}
 	file, err := files[0].Open()
 	if err != nil {
 		return nil, "", fmt.Errorf("open document upload: %w", err)

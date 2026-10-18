@@ -102,7 +102,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		accountStore,
 		renderer,
 		logger,
-		unboundedPublicProductResults,
+		options.MaxPublicProductResults,
 	)
 
 	uploadHandler := uploads.NewHandler(
@@ -116,7 +116,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		options.DownloadSigningKey,
 	)
 	adminHandler := admin.NewHandler(admin.NewStore(database), accountStore, renderer, logger, imagepreview.NewService(), options.MaxUploadBytes)
-	apiHandler := api.NewHandler(accountStore, orderStore, productStore, api.NewStore(database), logger, unboundedPublicProductResults)
+	apiHandler := api.NewHandler(accountStore, orderStore, productStore, api.NewStore(database), logger, options.MaxPublicProductResults)
 	assistantHandler := assistant.NewHandler(accountStore, assistant.NewService(orderStore), renderer, logger)
 	supportHandler := support.NewHandler(
 		accountStore,
@@ -212,7 +212,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.Handle("POST /account/totp/confirm", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(accountHandler.ConfirmTOTP)))
 	dynamicMux.Handle("POST /account/totp/disable", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(accountHandler.DisableTOTP)))
 	dynamicMux.HandleFunc("GET /account/tax-exemption", uploadHandler.TaxExemptionPage)
-	dynamicMux.HandleFunc("POST /account/tax-exemption/files", uploadHandler.Upload)
+	dynamicMux.Handle("POST /account/tax-exemption/files", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(uploadHandler.Upload)))
 	dynamicMux.HandleFunc("GET /account/reviews", reviewHandler.List)
 	dynamicMux.HandleFunc("GET /account/reviews/{id}/edit", reviewHandler.Edit)
 	dynamicMux.Handle("POST /account/reviews/{id}", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(reviewHandler.Update)))
@@ -233,7 +233,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	dynamicMux.HandleFunc("GET /support/orders/{id}", supportHandler.Order)
 	dynamicMux.HandleFunc("GET /support/tax-exemptions", supportHandler.TaxExemptions)
 	dynamicMux.HandleFunc("GET /support/tax-exemptions/import", supportHandler.ImportTaxDocumentsPage)
-	dynamicMux.HandleFunc("POST /support/tax-exemptions/import", supportHandler.ImportTaxDocuments)
+	dynamicMux.Handle("POST /support/tax-exemptions/import", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(supportHandler.ImportTaxDocuments)))
 	dynamicMux.HandleFunc("GET /admin", adminHandler.Dashboard)
 	dynamicMux.HandleFunc("GET /admin/image-preview", adminHandler.ImagePreviewPage)
 	dynamicMux.Handle("POST /admin/image-preview", parseForm(options.MaxRequestBodyBytes, renderer)(http.HandlerFunc(adminHandler.PreviewImage)))
