@@ -21,6 +21,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"encoding/hex"
 
 	"github.com/bootdotdev/learn-web-security/internal/database"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
@@ -194,6 +195,11 @@ func newAuthenticationRateLimitApplication(t *testing.T) *Application {
 		t.Fatal(err)
 	}
 
+	downloadSigningKey, err := hex.DecodeString("6eea7a2e59c1320671a768f3017e7bce8e60991d97bbcf034fdf5537be1a3a75")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	application, err := New(databaseConnection, logger, Options{
 		AppOrigin:               lessonAuthOrigin,
 		MaxPublicProductResults: 50,
@@ -205,6 +211,7 @@ func newAuthenticationRateLimitApplication(t *testing.T) *Application {
 		FixtureDirectory:        filepath.Join(repositoryRoot, "data", "fixtures"),
 		TemplateDirectory:       filepath.Join(repositoryRoot, "web", "templates"),
 		PublicDirectory:         filepath.Join(repositoryRoot, "web", "public"),
+		DownloadSigningKey:      [32]byte(downloadSigningKey),
 	})
 	if err != nil {
 		t.Fatal(err)
