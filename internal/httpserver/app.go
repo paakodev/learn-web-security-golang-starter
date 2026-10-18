@@ -219,7 +219,14 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	})
 
 	// Domain/site should be set somewhere sensible
-	dynamicHandler := blockNonTrustedOrigin("http://localhost:3030", renderer)(dynamicMux)
+	dynamicHandler := applyMiddleware(
+		dynamicMux,
+		blockNonTrustedOrigin("http://localhost:3030", renderer),
+		fixedWindowRateLimiter(rateLimitOptions{
+			window:  time.Minute,
+			maximum: 100,
+		}),
+	)
 
 	mainMux := http.NewServeMux()
 	mainMux.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, _ *http.Request) {
