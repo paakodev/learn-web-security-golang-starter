@@ -256,6 +256,7 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 			window:  time.Minute,
 			maximum: 100,
 		}),
+		LoadShedder(50, 1),
 	)
 
 	mainMux := http.NewServeMux()
