@@ -154,10 +154,22 @@ func (handler *Handler) Products(responseWriter http.ResponseWriter, request *ht
 }
 
 func (handler *Handler) WarehouseOrders(responseWriter http.ResponseWriter, request *http.Request) {
-	ok := handler.requireAPIKey(responseWriter, request)
+	key, ok := handler.requireAPIKey(responseWriter, request)
 	if !ok {
 		return
 	}
+
+	quota, err := handler.apiStore.ConsumeQuota(request.Context(), key.ID)
+	if err != nil {
+		handler.internalError(responseWriter, request, err)
+		return
+	}
+	SetQuotaHeaders(responseWriter, quota)
+	if !quota.Allowed {
+		RespondWithQuotaExhausted(responseWriter, quota)
+		return
+	}
+
 	orders, err := handler.orderStore.ListAll(request.Context())
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
@@ -172,6 +184,7 @@ func (handler *Handler) WarehouseOrders(responseWriter http.ResponseWriter, requ
 	httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{
 		"integration": "Warehouse Fulfillment Integration",
 		"orders":      responses,
+		"quota":       ToQuotaResponse(quota),
 	})
 }
 
@@ -188,22 +201,22 @@ func (handler *Handler) requireAuthentication(responseWriter http.ResponseWriter
 	return current, true
 }
 
-func (handler *Handler) requireAPIKey(responseWriter http.ResponseWriter, request *http.Request) bool {
+func (handler *Handler) requireAPIKey(responseWriter http.ResponseWriter, request *http.Request) (Key, bool) {
 	apiKey := request.Header.Get("X-API-Key")
 	key, valid, err := handler.apiStore.FindKey(request.Context(), apiKey)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
-		return false
+		return Key{}, false
 	}
 	if !valid {
 		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "Invalid API key"})
-		return false
+		return Key{}, false
 	}
 	if key.Scope != ordersReadScope {
 		httpx.RespondWithJSON(responseWriter, http.StatusForbidden, map[string]string{"error": "Insufficient API key scope"})
-		return false
+		return Key{}, false
 	}
-	return true
+	return key, true
 }
 
 func (handler *Handler) internalError(responseWriter http.ResponseWriter, request *http.Request, err error) {
