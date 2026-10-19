@@ -3,6 +3,7 @@
 package httpserver
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"uuid"
 
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
@@ -21,6 +23,7 @@ import (
 )
 
 type middleware func(http.Handler) http.Handler
+type requestIDContextKey struct{}
 
 func applyMiddleware(handler http.Handler, middlewareChain ...middleware) http.Handler {
 	for _, currentMiddleware := range slices.Backward(middlewareChain) {
@@ -334,5 +337,14 @@ func securityHeaders(next http.Handler) http.Handler {
 		responseWriter.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
 		responseWriter.Header().Set("X-XSS-Protection", "0")
 		next.ServeHTTP(responseWriter, request)
+	})
+}
+
+func addUUID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		requestID := uuid.NewV4()
+		responseWriter.Header().Set("X-Request-ID", requestID.String())
+		contextWithID := context.WithValue(request.Context(), requestIDContextKey{}, requestID)
+		next.ServeHTTP(responseWriter, request.WithContext(contextWithID))
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"unicode/utf8"
+	"uuid"
 
 	"github.com/bootdotdev/learn-web-security/internal/accounts"
 	"github.com/bootdotdev/learn-web-security/internal/auth/mfa"
@@ -29,22 +30,24 @@ type authPage struct {
 }
 
 type authHandler struct {
-	accounts       *accounts.Store
-	renderer       *templates.Renderer
-	logger         *logging.Logger
-	mfa            *mfa.Store
-	passwordResets *passwordreset.Store
-	appOrigin      string
+	accounts         *accounts.Store
+	renderer         *templates.Renderer
+	logger           *logging.Logger
+	mfa              *mfa.Store
+	passwordResets   *passwordreset.Store
+	appOrigin        string
+	trustedProxyHops int
 }
 
-func newAuthHandler(accountStore *accounts.Store, mfaStore *mfa.Store, passwordResetStore *passwordreset.Store, renderer *templates.Renderer, logger *logging.Logger, appOrigin string) *authHandler {
+func newAuthHandler(accountStore *accounts.Store, mfaStore *mfa.Store, passwordResetStore *passwordreset.Store, renderer *templates.Renderer, logger *logging.Logger, appOrigin string, trustedProxyHops int) *authHandler {
 	return &authHandler{
-		accounts:       accountStore,
-		renderer:       renderer,
-		logger:         logger,
-		mfa:            mfaStore,
-		passwordResets: passwordResetStore,
-		appOrigin:      appOrigin,
+		accounts:         accountStore,
+		renderer:         renderer,
+		logger:           logger,
+		mfa:              mfaStore,
+		passwordResets:   passwordResetStore,
+		appOrigin:        appOrigin,
+		trustedProxyHops: trustedProxyHops,
 	}
 }
 
@@ -310,7 +313,25 @@ func (handler *authHandler) internalError(responseWriter http.ResponseWriter, re
 	}
 }
 
-func (handler *authHandler) logAuthenticationEvent(_ *http.Request, eventName string, fields map[string]any) {
+func (handler *authHandler) logAuthenticationEvent(request *http.Request, eventName string, fields map[string]any) {
+	requestID, ok := request.Context().Value(requestIDContextKey{}).(uuid.UUID)
+	if ok {
+		fields["requestId"] = requestID.String()
+	} else {
+		fields["requestId"] = nil
+	}
+
+	fields["sourceIp"] = clientIPKeyWithTrustedProxies(handler.trustedProxyHops)(request)
+
+	if _, exists := fields["userId"]; !exists {
+		fields["userId"] = nil
+	}
+
+	if success, ok := fields["success"].(bool); ok && success {
+		fields["outcome"] = "success"
+	} else {
+		fields["outcome"] = "failure"
+	}
 	_ = handler.logger.Event(eventName, fields)
 }
 
