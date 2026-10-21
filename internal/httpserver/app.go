@@ -277,6 +277,20 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 	mainMux.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, _ *http.Request) {
 		httpx.RespondWithJSON(responseWriter, http.StatusOK, map[string]any{"ok": true, "app": "bearly-secure"})
 	})
+	mainMux.HandleFunc("GET /.well-known/security.txt", func(responseWriter http.ResponseWriter, _ *http.Request) {
+		expiration := time.Now().Add(180 * 24 * time.Hour).Format(time.RFC3339)
+		responseWriter.Header().Set("Content-Type", "text/plain")
+		_, err := fmt.Fprintf(responseWriter, "Contact: mailto:security@bearlysecure.example\n"+
+			"Policy: https://bearlysecure.example/security-policy\n"+
+			"Expires: %s\n",
+			expiration,
+		)
+		if err != nil {
+			logger.Event("security.txt_write_error", map[string]any{
+				"error": err.Error(),
+			})
+		}
+	})
 	staticHandler := newStaticHandler(publicRoot)
 	mainMux.Handle("GET /reset.css", staticHandler)
 	mainMux.Handle("GET /styles.css", staticHandler)
