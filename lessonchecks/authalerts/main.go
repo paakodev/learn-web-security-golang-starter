@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -97,6 +98,12 @@ func runIsolatedProbe(ctx context.Context) (checkResult, error) {
 	if err != nil {
 		return checkResult{}, err
 	}
+	var downloadSigningKey [32]byte
+	decodedKey, err := hex.DecodeString("6eea7a2e59c1320671a768f3017e7bce8e60991d97bbcf034fdf5537be1a3a75")
+	if err != nil {
+		return checkResult{}, err
+	}
+	copy(downloadSigningKey[:], decodedKey)
 	application, err := httpserver.New(databaseConnection, appLogger, httpserver.Options{
 		AppOrigin:               applicationOrigin,
 		MaxPublicProductResults: 50,
@@ -108,6 +115,7 @@ func runIsolatedProbe(ctx context.Context) (checkResult, error) {
 		FixtureDirectory:        filepath.Join(projectRoot, "data", "fixtures"),
 		TemplateDirectory:       filepath.Join(projectRoot, "web", "templates"),
 		PublicDirectory:         filepath.Join(projectRoot, "web", "public"),
+		DownloadSigningKey:      downloadSigningKey,
 	})
 	if err != nil {
 		return checkResult{}, err

@@ -23,6 +23,7 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/imagepreview"
 	"github.com/bootdotdev/learn-web-security/internal/integrations/pawpal"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
+	"github.com/bootdotdev/learn-web-security/internal/observability"
 	"github.com/bootdotdev/learn-web-security/internal/orders"
 	"github.com/bootdotdev/learn-web-security/internal/reviews"
 	"github.com/bootdotdev/learn-web-security/internal/storage"
@@ -128,7 +129,20 @@ func New(database *sql.DB, logger *logging.Logger, options Options) (*Applicatio
 		filepath.Join(options.DataDirectory, "bulk-tax-documents"),
 		defaultUploadBytes,
 	)
-	authenticationHandler := newAuthHandler(accountStore, mfaStore, passwordResetStore, renderer, logger, options.AppOrigin, options.TrustedProxyHops)
+	failedLoginTracker := observability.NewAuthAlertThreshold(
+		"failed_logins",
+		3,
+		5*time.Minute,
+		logger,
+	)
+	passwordResetTracker := observability.NewAuthAlertThreshold(
+		"password_reset_requests",
+		3,
+		10*time.Minute,
+		logger,
+	)
+
+	authenticationHandler := newAuthHandler(accountStore, mfaStore, passwordResetStore, renderer, logger, options.AppOrigin, options.TrustedProxyHops, failedLoginTracker, passwordResetTracker)
 	passkeyHandler, err := passkeys.NewHandler(
 		options.AppOrigin,
 		accountStore,

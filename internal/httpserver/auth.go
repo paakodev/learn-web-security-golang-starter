@@ -16,6 +16,7 @@ import (
 	"github.com/bootdotdev/learn-web-security/internal/botdetection"
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
+	"github.com/bootdotdev/learn-web-security/internal/observability"
 	"github.com/bootdotdev/learn-web-security/internal/templates"
 )
 
@@ -30,24 +31,28 @@ type authPage struct {
 }
 
 type authHandler struct {
-	accounts         *accounts.Store
-	renderer         *templates.Renderer
-	logger           *logging.Logger
-	mfa              *mfa.Store
-	passwordResets   *passwordreset.Store
-	appOrigin        string
-	trustedProxyHops int
+	accounts             *accounts.Store
+	renderer             *templates.Renderer
+	logger               *logging.Logger
+	mfa                  *mfa.Store
+	passwordResets       *passwordreset.Store
+	appOrigin            string
+	trustedProxyHops     int
+	failedLoginTracker   *observability.AuthAlertThreshold
+	passwordResetTracker *observability.AuthAlertThreshold
 }
 
-func newAuthHandler(accountStore *accounts.Store, mfaStore *mfa.Store, passwordResetStore *passwordreset.Store, renderer *templates.Renderer, logger *logging.Logger, appOrigin string, trustedProxyHops int) *authHandler {
+func newAuthHandler(accountStore *accounts.Store, mfaStore *mfa.Store, passwordResetStore *passwordreset.Store, renderer *templates.Renderer, logger *logging.Logger, appOrigin string, trustedProxyHops int, failedLoginTracker *observability.AuthAlertThreshold, passwordResetTracker *observability.AuthAlertThreshold) *authHandler {
 	return &authHandler{
-		accounts:         accountStore,
-		renderer:         renderer,
-		logger:           logger,
-		mfa:              mfaStore,
-		passwordResets:   passwordResetStore,
-		appOrigin:        appOrigin,
-		trustedProxyHops: trustedProxyHops,
+		accounts:             accountStore,
+		renderer:             renderer,
+		logger:               logger,
+		mfa:                  mfaStore,
+		passwordResets:       passwordResetStore,
+		appOrigin:            appOrigin,
+		trustedProxyHops:     trustedProxyHops,
+		failedLoginTracker:   failedLoginTracker,
+		passwordResetTracker: passwordResetTracker,
 	}
 }
 
@@ -332,7 +337,24 @@ func (handler *authHandler) logAuthenticationEvent(request *http.Request, eventN
 	} else {
 		fields["outcome"] = "failure"
 	}
+
+	if ok {
+		handler.updateTrackers(eventName, requestID, fields)
+	} else {
+		// Every authentication request should have passed through addUUID.
+		// A missing request ID indicates broken context propagation or a
+		// handler being invoked outside the normal middleware chain.
+		_ = handler.logger.Event("authentication_event_without_request_id", fields)
+	}
 	_ = handler.logger.Event(eventName, fields)
+}
+
+func (handler *authHandler) updateTrackers(eventName string, requestID uuid.UUID, fields map[string]any) {
+	if eventName == "login_attempt" && fields["outcome"] == "failure" {
+		handler.failedLoginTracker.Record(requestID, fields["sourceIp"].(string), fields["userId"])
+	} else if eventName == "password_reset_request" {
+		handler.passwordResetTracker.Record(requestID, fields["sourceIp"].(string), fields["userId"])
+	}
 }
 
 func safeReturnTo(value string) string {
